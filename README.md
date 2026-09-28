@@ -17,12 +17,12 @@ Puzzle 1 plays on the date set by `LAUNCH` near the top of the script in `index.
 `puzzles.js` is written by `generate.js`. Don't edit it by hand.
 
 ```sh
-node generate.js           # build 8 weeks (56 days) of puzzles
+node generate.js           # build 8 weeks (56 days) of puzzles, plus 2 practice weeks
 node generate.js 12        # build 12 weeks
-node generate.js --check   # re-verify every puzzle has exactly one solution
+node generate.js --check   # re-verify every puzzle has exactly one solution and none repeat
 ```
 
-Change `SEED` in `generate.js` to get a different set. Difficulty by day lives in `LEVELS`:
+`puzzles.js` holds two sets. `PUZZLES` is the real daily schedule. `PRACTICE` is played in preview mode before launch, and it never shares a puzzle with the schedule, so launch day is always a fresh puzzle. Change `SEED` or `PRACTICE_SEED` in `generate.js` to get different sets. Difficulty by day lives in `LEVELS`:
 
 | Day | Grid | Empty squares | Repeated weights | Logic |
 |---|---|---|---|---|
@@ -42,9 +42,13 @@ The answers aren't stored anywhere. The game solves the puzzle in the browser on
 
 Each placement is a move. A perfect solve uses one move per empty square. The share card colors every empty square by how many tries it took (🟩 first, 🟨 second, 🟧 third, 🟥 four or more), and it adds the move count and solve time. So two players' cards for the same puzzle almost never match. The timer starts when the player taps Play on the "Ready to play?" screen. It pauses, and hides the board, when they tap pause or leave the page.
 
-## Testing a specific day
+## Preview, replays, and testing
 
-Add `#day3` to the URL to play puzzle 3. Before the launch date, a day picker appears automatically. Neither mode saves stats.
+- **Before launch**, the site plays the practice set with a day picker. The real puzzles stay out of sight.
+- **After launch**, `#day3` replays an earlier day. Days that haven't arrived yet show "unlocks on…" instead.
+- **`#test`** (or `#test-day30` for a specific day) opens the real schedule, including future days, so you can check upcoming puzzles. Keep that link to yourself.
+
+None of these modes save stats. The puzzle data is in a public repo, so a determined player could still read future grids from `puzzles.js`. The answers aren't in it, though.
 
 ## Files
 

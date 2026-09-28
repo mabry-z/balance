@@ -255,14 +255,28 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
   var DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   var BUCKETS = ["Perfect", "+1–2", "+3–5", "+6–9", "+10"];
-  var P = window.PUZZLES || {};
-
   function $(id){ return document.getElementById(id); }
   function dayIndex(d){ var a = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return Math.round((a - LAUNCH) / 864e5); }
   function dateFor(i){ return new Date(LAUNCH.getFullYear(), LAUNCH.getMonth(), LAUNCH.getDate() + i); }
+  function longDate(d){ return DAYS[d.getDay()] + ", " + MONTHS[d.getMonth()] + " " + d.getDate(); }
+
+  // Modes, chosen from the date and the URL:
+  //   live      today's puzzle (default after launch). Stats saved.
+  //   practice  before launch: a separate practice set that never goes live.
+  //   replay    #day3 after launch: an earlier day. Future days stay locked.
+  //   test      #test or #test-day30: the whole real schedule, for the owner.
+  var today = dayIndex(new Date());
+  var hash = location.hash.replace(/^#/, "");
+  var mTest = /^test(?:-day(\d+))?$/.exec(hash), mDay = /^day(\d+)$/.exec(hash);
+  var mode = mTest ? "test" : today < 0 ? "practice" : mDay ? "replay" : "live";
+  var preview = mode !== "live";
+  var P = (mode === "practice" ? window.PRACTICE : window.PUZZLES) || {};
   // Puzzles are grouped by weekday so difficulty follows the day of the week.
   function puzzleFor(i){ if (i < 0) return null; var list = P[dateFor(i).getDay()]; return list ? list[Math.floor(i / 7)] || null : null; }
   var TOTAL = 0; while (puzzleFor(TOTAL)) TOTAL++;
+  // The last day a player may open. Only test mode can look ahead.
+  var LAST = mode === "test" || mode === "practice" ? TOTAL - 1 : Math.min(today, TOTAL - 1);
+  window.addEventListener("hashchange", function(){ location.reload(); });
 
   function load(){
     try { var s = JSON.parse(localStorage.getItem(KEY)); if (s && s.stats) return s; } catch(e){}
@@ -271,8 +285,6 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
   function save(){ if (preview) return; try { localStorage.setItem(KEY, JSON.stringify(store)); } catch(e){} }
 
   var store = load();
-  var today = dayIndex(new Date());
-  var preview = today < 0 || /^#?day\d+$/.test(location.hash);
   var idx, p, g, holes, n, selTray = null, selHole = null, timer = null, clock = null, runFrom = null, week = 0, armTimer = null;
 
   function freshGame(pz){
@@ -283,15 +295,23 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
   function begin(i){
     stopClock(); clearInterval(timer);
     idx = i; selTray = null; selHole = null;
-    p = puzzleFor(idx);
-    if (!p){ $("game").hidden = true; $("noPuzzle").hidden = false; renderChips(); return; }
+    p = idx <= LAST ? puzzleFor(idx) : null;
+    if (!p){
+      $("game").hidden = true; $("noPuzzle").hidden = false;
+      $("noPuzzle").querySelector("p").textContent = (idx > LAST && puzzleFor(idx))
+        ? "Balance #" + (idx + 1) + " unlocks on " + longDate(dateFor(idx)) + "."
+        : "No puzzle today. Check back tomorrow.";
+      renderChips(); return;
+    }
     $("game").hidden = false; $("noPuzzle").hidden = true;
     n = p.grid.length; holes = [];
     p.grid.forEach(function(row, r){ row.forEach(function(v, c){ if (!v) holes.push([r, c]); }); });
     g = (!preview && store.games[idx]) ? store.games[idx] : freshGame(p);
     if (!preview) store.games[idx] = g;
     var d = dateFor(idx);
-    $("meta").textContent = "#" + (idx + 1) + " · " + DAYS[d.getDay()] + ", " + MONTHS[d.getMonth()] + " " + d.getDate();
+    $("meta").textContent = mode === "practice"
+      ? "Practice · " + DAYS[d.getDay()]
+      : "#" + (idx + 1) + " · " + longDate(d);
     $("prompt").innerHTML = "Make every line add to <b>" + p.target + "</b>";
     $("msg").textContent = g.done ? "" : "Tap a weight, then an empty square";
     resetReveal();
@@ -486,7 +506,7 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
 
   function shareText(){
     var d = dateFor(idx), perfect = g.moves === holes.length;
-    var head = "Balance #" + (idx + 1) + " · " + DAYS[d.getDay()].slice(0, 3);
+    var head = (mode === "practice" ? "Balance practice" : "Balance #" + (idx + 1)) + " · " + DAYS[d.getDay()].slice(0, 3);
     var line2 = g.win ? (perfect ? "⚖️ Perfect · " : g.moves + " moves (perfect " + holes.length + ") · ") + "⏱ " + fmt(g.ms) : "Revealed";
     var rows = [];
     for (var r = 0; r < n; r++){
@@ -506,7 +526,7 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
     $("resultTitle").textContent = g.win ? titles[bucket(over)] + " · " + g.moves + " moves" : "Here's the solution";
     $("note").textContent = g.win
       ? "Solved in " + fmt(g.ms) + (over === 0 ? ". Every weight placed once." : ". Perfect is " + holes.length + " moves.")
-      : "Every Balance has exactly one solution. See you tomorrow.";
+      : "Every Balance has exactly one solution." + (mode === "live" ? " See you tomorrow." : "");
     var grid = $("grid"); grid.innerHTML = "";
     for (var r = 0; r < n; r++){
       var rowEl = document.createElement("div"); rowEl.className = "row";
@@ -521,6 +541,7 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
   }
 
   function tick(){
+    if (mode === "practice"){ $("countdown").textContent = "Balance #1 arrives " + longDate(LAUNCH) + "."; return; }
     if (preview){ $("countdown").textContent = ""; return; }
     var now = new Date(), next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     var s = Math.max(0, Math.floor((next - now) / 1000));
@@ -544,15 +565,17 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
   });
 
   // ---- preview day picker ----
-  var WEEKS = Math.ceil(TOTAL / 7);
+  var WEEKS = Math.max(1, Math.ceil((LAST + 1) / 7));
+  var PREVIEW_TEXT = {
+    practice: "Practice puzzles. Balance launches " + longDate(LAUNCH) + ", and these won't be in the daily set. Stats aren't saved.",
+    replay: "Replaying an earlier day. Stats aren't saved.",
+    test: "Test mode: the real schedule, including days that haven't unlocked. Keep this link to yourself. Stats aren't saved."
+  };
   function renderChips(){
     if (!preview){ $("preview").hidden = true; return; }
     $("preview").hidden = false;
-    if (today < 0){
-      var d = LAUNCH;
-      $("previewText").textContent = "Preview. Balance launches " + DAYS[d.getDay()] + ", " + MONTHS[d.getMonth()] + " " + d.getDate() + ". Pick any day to play it. Stats aren't saved.";
-    }
-    if (idx >= 0 && idx < TOTAL) week = Math.floor(idx / 7);
+    $("previewText").textContent = PREVIEW_TEXT[mode];
+    if (idx >= 0 && idx <= LAST) week = Math.floor(idx / 7);
     drawWeek();
   }
   function drawWeek(){
@@ -560,10 +583,10 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
     $("prevWeek").disabled = week === 0; $("nextWeek").disabled = week >= WEEKS - 1;
     var chips = $("chips"); chips.innerHTML = "";
     for (var k = 0; k < 7; k++){
-      var i = week * 7 + k; if (i >= TOTAL) break;
+      var i = week * 7 + k; if (i > LAST) break;
       var c = document.createElement("button"); c.className = "chip";
       c.textContent = DAYS[dateFor(i).getDay()].slice(0, 3);
-      c.setAttribute("aria-label", DAYS[dateFor(i).getDay()] + ", puzzle " + (i + 1));
+      c.setAttribute("aria-label", DAYS[dateFor(i).getDay()] + (mode === "practice" ? ", practice" : ", puzzle " + (i + 1)));
       c.setAttribute("aria-pressed", i === idx ? "true" : "false");
       (function(i){ c.addEventListener("click", function(){ begin(i); }); })(i);
       chips.appendChild(c);
@@ -589,8 +612,8 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
   document.querySelectorAll(".overlay").forEach(function(o){ o.addEventListener("click", function(e){ if (e.target === o || e.target.closest("[data-close]")) closeAll(); }); });
   document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeAll(); });
 
-  var hashDay = /^#?day(\d+)$/.exec(location.hash);
-  begin(hashDay ? parseInt(hashDay[1], 10) - 1 : (today < 0 ? 0 : today));
+  var asked = mTest && mTest[1] ? mTest[1] : mode === "replay" ? mDay[1] : null;
+  begin(asked !== null ? parseInt(asked, 10) - 1 : mode === "practice" || mode === "test" ? 0 : today);
   // First visit: show the rules once, since the game is new to players.
   if (!store.seenHelp){ open("helpModal"); store.seenHelp = true; if (!preview) save(); }
 })();
