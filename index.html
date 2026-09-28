@@ -73,7 +73,16 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
 .meta{margin:0;text-align:center;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-variant-numeric:tabular-nums}
 .prompt{margin:6px 0 4px;text-align:center;font-family:var(--serif);font-weight:500;font-size:26px;line-height:1.2;text-wrap:balance}
 .prompt b{font-weight:500;display:inline-block;min-width:1.4em;padding:0 .2em;border-radius:6px;background:var(--given)}
-.counter{margin:0 0 16px;text-align:center;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.counter-row{display:flex;justify-content:center;align-items:center;gap:2px;margin:0 0 10px}
+.counter{margin:0;text-align:center;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.icon-btn.pause{width:36px;height:36px;color:var(--muted)}
+.icon-btn.pause svg{width:18px;height:18px}
+.start{display:grid;justify-items:center;gap:14px;text-align:center;padding:36px 0 28px}
+.start .prompt{margin:0}
+.start .note{max-width:30ch}
+.start-mark{display:grid;grid-template-columns:repeat(3,22px);gap:5px;margin-bottom:4px}
+.start-mark i{height:22px;border-radius:5px;background:var(--given)}
+.start-mark i.g{background:var(--correct-bg);box-shadow:inset 0 0 0 1px var(--correct)}
 .counter strong{color:var(--ink);font-weight:600}
 
 /* Board */
@@ -169,14 +178,22 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
 
   <div id="game">
     <p class="meta" id="meta"></p>
+    <section class="start" id="start" hidden>
+      <div class="start-mark" aria-hidden="true"><i></i><i></i><i></i><i class="g"></i><i class="g"></i><i class="g"></i><i></i><i></i><i></i></div>
+      <h2 class="prompt" id="startTitle">Ready to play?</h2>
+      <p class="note" id="startNote"></p>
+      <button class="primary" id="startBtn">Play</button>
+    </section>
+    <div id="puzzle">
     <h2 class="prompt" id="prompt"></h2>
-    <p class="counter" id="counter"></p>
+    <div class="counter-row"><p class="counter" id="counter"></p><button class="icon-btn pause" id="pauseBtn" aria-label="Pause"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="6" width="3.2" height="12" rx="1"/><rect x="13.8" y="6" width="3.2" height="12" rx="1"/></svg></button></div>
     <div class="board" id="board"></div>
     <div id="play">
       <p class="tray-label">Weights</p>
       <div class="tray" id="tray"></div>
       <p class="msg" id="msg" aria-live="polite"></p>
       <button class="linkish" id="revealBtn">Reveal solution</button>
+    </div>
     </div>
     <section class="result" id="result" hidden>
       <h2 id="resultTitle"></h2>
@@ -210,6 +227,7 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
       <span class="h"></span><span>6</span><span>2</span><span class="t">8</span>
     </div>
     <p>Every weight gets used, and there's exactly one solution. Each placement is a move. A perfect solve places every weight once.</p>
+    <p>The timer starts when you tap Play. Pausing or leaving the page hides the board.</p>
     <p>Your share card shows how many tries each square took, so no two look alike.</p>
     <p>A new Balance arrives every day at midnight. Monday is gentle. By Sunday it's 5&times;5 with repeated weights.</p>
     <p class="fine">Also try <a href="https://mabry-z.github.io/sequence/">Sequence</a>: put five things in order in four guesses.</p>
@@ -279,9 +297,27 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
     resetReveal();
     renderChips();
     render();
-    if (g.done) showResult();
-    else { $("result").hidden = true; $("play").hidden = false; if (g.started) startClock(); }
+    if (g.done){ showGate(false); showResult(); }
+    else { $("result").hidden = true; $("play").hidden = false; showGate(true); }
   }
+
+  // ---- start and pause screens: the board stays hidden until the clock runs ----
+  function showGate(on){
+    $("start").hidden = !on; $("puzzle").hidden = on;
+    if (!on) return;
+    var paused = g.started, sz = n + "×" + n;
+    $("startTitle").textContent = paused ? "Your game is paused" : "Ready to play?";
+    $("startNote").textContent = paused
+      ? "Moves " + g.moves + " · " + fmt(g.ms) + ". The board stays hidden while you're paused."
+      : sz + " · " + holes.length + " weights to place. The timer starts when you tap Play.";
+    $("startBtn").textContent = paused ? "Resume" : "Play";
+  }
+  $("startBtn").addEventListener("click", function(){
+    g.started = true; showGate(false); startClock(); save(); render();
+    var first = document.querySelector(".tile:not(.used)"); if (first) first.focus({ preventScroll:true });
+  });
+  function pause(){ if (!g || g.done || !g.started) return; stopClock(); save(); showGate(true); }
+  $("pauseBtn").addEventListener("click", function(){ pause(); $("startBtn").focus(); });
 
   // ---- timer (counts only while the page is visible) ----
   function elapsed(){ return g.ms + (runFrom !== null ? Date.now() - runFrom : 0); }
@@ -292,7 +328,7 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
   function stopClock(){ if (g && runFrom !== null){ g.ms = elapsed(); } runFrom = null; clearInterval(clock); }
   document.addEventListener("visibilitychange", function(){
     if (!g) return;
-    if (document.hidden){ stopClock(); save(); } else if (g.started && !g.done) startClock();
+    if (document.hidden) pause();
   });
   function fmt(ms){ var s = Math.floor(ms / 1000), m = Math.floor(s / 60); s %= 60; return m + ":" + (s < 10 ? "0" : "") + s; }
 
@@ -369,10 +405,7 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
     renderCounter();
   }
 
-  function touch(){ if (!g.started){ g.started = true; startClock(); } }
-
   function placeTile(t, h){
-    touch();
     g.place[h] = t; g.moves++; g.tries[h]++;
     selTray = null; selHole = null;
     var L = lines(), filled = g.place.every(function(x){ return x >= 0; });
@@ -397,7 +430,6 @@ main{max-width:420px;margin:0 auto;padding-block:20px 40px}
     if (g.done) return;
     lastHole = h;
     if (g.place[h] >= 0){
-      touch();
       g.place[h] = -1; selHole = null;
       $("msg").textContent = "Weight returned to the tray";
       save(); render(); focusHole(); return;

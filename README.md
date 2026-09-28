@@ -40,7 +40,7 @@ The answers aren't stored anywhere. The game solves the puzzle in the browser on
 
 ## Scoring and sharing
 
-Each placement is a move. A perfect solve uses one move per empty square. The share card colors every empty square by how many tries it took (🟩 first, 🟨 second, 🟧 third, 🟥 four or more), and it adds the move count and solve time. So two players' cards for the same puzzle almost never match. The timer only runs while the page is open.
+Each placement is a move. A perfect solve uses one move per empty square. The share card colors every empty square by how many tries it took (🟩 first, 🟨 second, 🟧 third, 🟥 four or more), and it adds the move count and solve time. So two players' cards for the same puzzle almost never match. The timer starts when the player taps Play on the "Ready to play?" screen. It pauses, and hides the board, when they tap pause or leave the page.
 
 ## Testing a specific day
 
